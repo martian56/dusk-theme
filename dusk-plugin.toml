@@ -1,0 +1,10 @@
+name = "theme"
+version = "0.1.0"
+description = "Twenty themes for dusk, a gallery, and themes for your mood and the hour"
+themes = "themes"
+command = "./target/raven-out/dusk-theme"
+activation = ["startup"]
+build = ["rvpm", "build"]
+
+[windows]
+command = "./target/raven-out/dusk-theme.exe"

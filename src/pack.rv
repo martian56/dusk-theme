@@ -1,0 +1,214 @@
+// The parts of dusk-theme that do not talk to dusk: picking a theme for a
+// mood or an hour, and inventing a random one.
+
+from std.random import Rng
+from "github.com/martian56/dusk-plugin" import ThemeSpec, theme
+
+// Words a mood may contain, and the theme that suits it.
+let MOODS = [
+    ("happy", "candy-unicorn"),
+    ("joy", "candy-unicorn"),
+    ("sparkl", "candy-unicorn"),
+    ("sad", "noir-detective"),
+    ("blue", "noir-detective"),
+    ("mystery", "noir-detective"),
+    ("angry", "solar-flare"),
+    ("mad", "solar-flare"),
+    ("hot", "solar-flare"),
+    ("tired", "coffee-shop"),
+    ("sleepy", "coffee-shop"),
+    ("coffee", "coffee-shop"),
+    ("calm", "zen-garden"),
+    ("focus", "zen-garden"),
+    ("peace", "zen-garden"),
+    ("hack", "the-matrix"),
+    ("matrix", "the-matrix"),
+    ("paranoid", "hal-9000"),
+    ("robot", "hal-9000"),
+    ("space", "event-horizon"),
+    ("dream", "event-horizon"),
+    ("retro", "amber-crt"),
+    ("old", "amber-crt"),
+    ("game", "game-cartridge"),
+    ("play", "game-cartridge"),
+    ("party", "synthwave-84"),
+    ("drive", "synthwave-84"),
+    ("night", "neo-tokyo"),
+    ("rain", "neo-tokyo"),
+    ("cold", "arctic-lab"),
+    ("fresh", "arctic-lab"),
+    ("deep", "abyssal-glow"),
+    ("ocean", "abyssal-glow"),
+    ("weird", "toxic-spill"),
+    ("chaos", "toxic-spill"),
+    ("rich", "dragon-hoard"),
+    ("epic", "dragon-hoard"),
+    ("explor", "mars-colony"),
+    ("build", "blueprint"),
+    ("plan", "blueprint"),
+    ("nostalg", "retro-terminal-90s"),
+    ("sweet", "bubblegum-pop"),
+    ("pink", "bubblegum-pop"),
+]
+
+// The theme for a mood, or "" when no word matches.
+fun theme_for_mood(mood: str) -> str {
+    let m = mood.to_lower()
+    for (word, name) in MOODS {
+        if m.contains(word) {
+            return name
+        }
+    }
+    return ""
+}
+
+// The theme for an hour of the day, 0 to 23.
+fun theme_for_hour(hour: int) -> str {
+    if hour >= 5 and hour < 8 {
+        return "arctic-lab"
+    }
+    if hour >= 8 and hour < 12 {
+        return "coffee-shop"
+    }
+    if hour >= 12 and hour < 17 {
+        return "zen-garden"
+    }
+    if hour >= 17 and hour < 20 {
+        return "synthwave-84"
+    }
+    if hour >= 20 and hour < 23 {
+        return "neo-tokyo"
+    }
+    return "event-horizon"
+}
+
+fun clamp(x: int, lo: int, hi: int) -> int {
+    if x < lo {
+        return lo
+    }
+    return hi if x > hi else x
+}
+
+fun hex2(n: int) -> str {
+    let digits = "0123456789abcdef"
+    let v = clamp(n, 0, 255)
+    return digits.char_at(v / 16) + digits.char_at(v % 16)
+}
+
+// A color from hue (0 to 359), saturation and lightness (0 to 100).
+fun hsl(h: int, s: int, l: int) -> str {
+    let hh = (h % 360 + 360) % 360
+    let sf = s.to_float() / 100.0
+    let lf = l.to_float() / 100.0
+    let c = (1.0 - (2.0 * lf - 1.0).abs()) * sf
+    let hp = hh.to_float() / 60.0
+    let wrapped = hp - 2.0 * (hp / 2.0).to_int().to_float()
+    let x = c * (1.0 - (wrapped - 1.0).abs())
+    var r = 0.0
+    var g = 0.0
+    var b = 0.0
+    if hp < 1.0 {
+        r = c
+        g = x
+    } else if hp < 2.0 {
+        r = x
+        g = c
+    } else if hp < 3.0 {
+        g = c
+        b = x
+    } else if hp < 4.0 {
+        g = x
+        b = c
+    } else if hp < 5.0 {
+        r = x
+        b = c
+    } else {
+        r = c
+        b = x
+    }
+    let m = lf - c / 2.0
+    let to = (v: float) -> int => ((v + m) * 255.0 + 0.5).to_int()
+    return "#" + hex2(to(r)) + hex2(to(g)) + hex2(to(b))
+}
+
+let CHAOS_LABELS = [
+    ("normal", ["VIBING", "LOITERING", "PONDERING", "HOVERING", "NAPPING", "SCHEMING"]),
+    ("insert", ["SCRIBBLING", "YOLO", "MASHING", "COOKING", "SPEEDRUN", "FREESTYLE"]),
+    ("visual", ["SQUINTING", "OGLING", "LASSOING", "STARING", "ZOOMING"]),
+    ("command", ["SUMMONING", "DEMANDING", "WHISPERING", "CASTING"]),
+]
+
+let CHAOS_BRANDS = [
+    " ?! dusk ?! ",
+    " ~chaos~ ",
+    " ¯\\_dusk_/¯ ",
+    " dusk.exe ",
+    " (╯°□°)╯ ",
+    " >:3 dusk ",
+]
+
+let CHAOS_GLYPHS = ["◆", "✦", "♣", "♠", "★", "✚", "☻", "♫", "❖", "✺"]
+
+fun pick(rng: Rng, xs: list[str]) -> str = xs[rng.gen_range(0, len(xs))]
+
+// A theme with a random hue scheme, labels and glyphs, named "chaos".
+fun chaos_theme(rng: Rng) -> ThemeSpec {
+    let hue = rng.gen_range(0, 360)
+    let dark = rng.gen_range(0, 4) != 0
+    let spread = rng.gen_range(25, 70)
+    let bg_l = rng.gen_range(6, 13) if dark else rng.gen_range(92, 97)
+    let fg_l = 88 if dark else 18
+    let acc_l = 66 if dark else 40
+    let accent = (k: int) -> str => hsl(hue + k * spread, rng.gen_range(60, 95), acc_l)
+    let t = theme("chaos")
+    t.base = "dusk" if dark else "dawn"
+    t.description = "A theme nobody asked for, rolled just now"
+    t.colors = [
+        ("ui.bg", hsl(hue, 30, bg_l)),
+        ("ui.fg", hsl(hue, 15, fg_l)),
+        ("ui.bar", hsl(hue, 35, bg_l + 5 if dark else bg_l - 6)),
+        ("ui.bar.fg", hsl(hue, 15, fg_l)),
+        ("ui.tab.active", hsl(hue, 30, bg_l)),
+        ("ui.sidebar", hsl(hue, 30, bg_l - 2 if dark else bg_l - 3)),
+        ("ui.popup", hsl(hue, 35, bg_l + 5 if dark else bg_l - 6)),
+        ("ui.cursorline", hsl(hue, 30, bg_l + 3 if dark else bg_l - 3)),
+        ("ui.selection", hsl(hue + 180, 40, bg_l + 14 if dark else bg_l - 14)),
+        ("ui.popup.selected", hsl(hue + 180, 40, bg_l + 14 if dark else bg_l - 14)),
+        ("ui.gutter", hsl(hue, 15, 40 if dark else 60)),
+        ("ui.border", hsl(hue, 20, 25 if dark else 75)),
+        ("ui.cursor", accent(1)),
+        ("ui.gutter.current", accent(1)),
+        ("ui.dir", accent(2)),
+        ("ui.mode.normal", accent(1)),
+        ("ui.mode.insert", accent(2)),
+        ("ui.mode.visual", accent(3)),
+        ("ui.mode.command", accent(4)),
+        ("ui.error", hsl(0, 85, acc_l)),
+        ("normal", hsl(hue, 15, fg_l)),
+        ("keyword", accent(1)),
+        ("string", accent(2)),
+        ("function", accent(3)),
+        ("type", accent(4)),
+        ("number", accent(5)),
+        ("constant", accent(5)),
+        ("operator", accent(6)),
+        ("comment", hsl(hue, 15, 45 if dark else 55)),
+    ]
+    let looks = ["bold", "italic", "underline", "bold italic", "none"]
+    t.styles = [
+        ("keyword", pick(rng, looks)),
+        ("function", pick(rng, looks)),
+        ("comment", "italic dim"),
+    ]
+    t.glyphs = [
+        ("brand", pick(rng, CHAOS_BRANDS)),
+        ("tab.dirty", pick(rng, CHAOS_GLYPHS)),
+        ("tree.closed", pick(rng, CHAOS_GLYPHS)),
+    ]
+    let labels: list[(str, str)] = []
+    for (mode, words) in CHAOS_LABELS {
+        labels.push((mode, pick(rng, words)))
+    }
+    t.labels = labels
+    return t
+}

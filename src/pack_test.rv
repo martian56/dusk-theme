@@ -1,0 +1,85 @@
+from std.test import assert_eq_str, assert_eq_int, assert_true
+from std.fs import list_dir
+from std.random import Rng
+from "./pack" import theme_for_mood, theme_for_hour, hsl, chaos_theme
+
+fun shipped() -> list[str] {
+    let out: list[str] = []
+    for n in list_dir("themes").unwrap() {
+        if n.ends_with(".toml") {
+            out.push(n.substring(0, n.length() - 5))
+        }
+    }
+    return out
+}
+
+fun test_moods_pick_shipped_themes() {
+    assert_eq_str(theme_for_mood("Pretty HAPPY today"), "candy-unicorn")
+    assert_eq_str(theme_for_mood("sleepy and need coffee"), "coffee-shop")
+    assert_eq_str(theme_for_mood("hacking the planet"), "the-matrix")
+    assert_eq_str(theme_for_mood("qwzx"), "")
+    let names = shipped()
+    for m in [
+        "happy",
+        "sad",
+        "angry",
+        "tired",
+        "calm",
+        "hack",
+        "robot",
+        "space",
+        "retro",
+        "game",
+        "party",
+        "night",
+        "cold",
+        "deep",
+        "weird",
+        "rich",
+        "explore",
+        "build",
+        "nostalgic",
+        "sweet",
+    ] {
+        assert_true(names.contains(theme_for_mood(m)))
+    }
+}
+
+fun test_every_hour_has_a_shipped_theme() {
+    let names = shipped()
+    for h in range(24) {
+        assert_true(names.contains(theme_for_hour(h)))
+    }
+    assert_eq_str(theme_for_hour(9), "coffee-shop")
+    assert_eq_str(theme_for_hour(2), "event-horizon")
+}
+
+fun test_hsl_known_colors() {
+    assert_eq_str(hsl(0, 100, 50), "#ff0000")
+    assert_eq_str(hsl(120, 100, 50), "#00ff00")
+    assert_eq_str(hsl(240, 100, 50), "#0000ff")
+    assert_eq_str(hsl(0, 0, 100), "#ffffff")
+    assert_eq_str(hsl(400, 100, 50), hsl(40, 100, 50))
+}
+
+fun test_chaos_is_well_formed() {
+    let rng = Rng.new(7)
+    for i in range(50) {
+        let t = chaos_theme(rng)
+        assert_eq_str(t.name, "chaos")
+        for (k, v) in t.colors {
+            assert_eq_int(v.length(), 7)
+            assert_true(v.starts_with("#"))
+        }
+        for (k, v) in t.labels {
+            assert_true(len(v.chars()) <= 12)
+        }
+        for (k, v) in t.glyphs {
+            assert_true(len(v.chars()) <= (16 if k == "brand" else 1))
+        }
+    }
+}
+
+fun test_shipped_set_has_twenty() {
+    assert_eq_int(len(shipped()), 20)
+}

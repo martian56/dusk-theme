@@ -1,0 +1,172 @@
+// dusk-theme: twenty themes for dusk, and commands to wander through them.
+
+from std.json import JsonValue
+from std.random import Rng
+from std.time import DateTime, now_millis
+from "github.com/martian56/dusk-plugin" import (
+    Ctx,
+    plugin,
+    param,
+    int_param,
+    text_block,
+    list_block,
+    buttons_block,
+    input_block,
+)
+from "./pack" import theme_for_mood, theme_for_hour, chaos_theme
+
+class State {
+    names: list[str] = []
+    clock: bool = false
+    clock_checked: int = 0
+    rng: Rng = Rng.from_entropy()
+}
+
+let ST: State = State()
+
+// Every theme dusk knows, as (name, description), and the current one.
+fun all_themes(ctx: Ctx) -> (list[(str, str)], str) {
+    return match ctx.themes() {
+        case Ok(r) { r }
+        case Err(e) {
+            ctx.error("dusk-theme: ${e}")
+            let none: list[(str, str)] = []
+            (none, "")
+        }
+    }
+}
+
+fun wear(ctx: Ctx, name: str, why: str) {
+    ctx.set_theme(name)
+    ctx.message("${why}: ${name}")
+}
+
+fun surprise(ctx: Ctx, params: JsonValue) {
+    let (themes, current) = all_themes(ctx)
+    let choices = themes.filter(t => t.0 != current).map(t => t.0)
+    if len(choices) == 0 {
+        ctx.message("only one theme here, and you are wearing it")
+        return
+    }
+    wear(ctx, choices[ST.rng.gen_range(0, len(choices))], "surprise")
+}
+
+fun chaos(ctx: Ctx, params: JsonValue) {
+    ctx.define_theme(chaos_theme(ST.rng))
+    wear(ctx, "chaos", "rolled a fresh one")
+}
+
+fun mood(ctx: Ctx, params: JsonValue) {
+    match ctx.prompt("How are you feeling?", "") {
+        case Some(text) {
+            let name = theme_for_mood(text)
+            if name == "" {
+                ctx.define_theme(chaos_theme(ST.rng))
+                wear(ctx, "chaos", "no idea what that feels like, so")
+            } else {
+                wear(ctx, name, "for that mood")
+            }
+        }
+        case None {}
+    }
+}
+
+fun hour_now() -> int = DateTime.now_local().hour()
+
+fun clock(ctx: Ctx, params: JsonValue) {
+    ST.clock = not ST.clock
+    if ST.clock {
+        wear(ctx, theme_for_hour(hour_now()), "following the clock")
+        ctx.status("clock", "theme clock")
+    } else {
+        ctx.status("clock", "")
+        ctx.message("theme clock off")
+    }
+}
+
+// While the clock is on, a cursor move at most once a minute checks the hour.
+fun moved(ctx: Ctx, params: JsonValue) {
+    if not ST.clock {
+        return
+    }
+    let now = now_millis()
+    if now - ST.clock_checked < 60000 {
+        return
+    }
+    ST.clock_checked = now
+    let want = theme_for_hour(hour_now())
+    let (themes, current) = all_themes(ctx)
+    if want != current {
+        wear(ctx, want, "the hour changed")
+    }
+}
+
+fun gallery(ctx: Ctx, params: JsonValue) {
+    let (themes, current) = all_themes(ctx)
+    ST.names = themes.map(t => t.0)
+    let rows = themes.map(t => (("● " if t.0 == current else "  ") + t.0, t.1))
+    ctx.panel(
+        "gallery",
+        "Themes",
+        "right",
+        [
+            text_block(
+                "intro",
+                "**${len(themes)} themes.** Enter wears one; you are in *${current}*.",
+            ),
+            list_block("themes", rows),
+            buttons_block("actions", ["Surprise me", "Chaos", "Close"]),
+            text_block("mood-help", "Or tell me your mood:"),
+            input_block("mood", ""),
+        ],
+    )
+}
+
+fun on_event(ctx: Ctx, params: JsonValue) {
+    if param(params, "panel") != "gallery" {
+        return
+    }
+    let block = param(params, "block")
+    let kind = param(params, "kind")
+    if block == "themes" and kind == "choose" {
+        let i = int_param(params, "value", 0 - 1)
+        if i >= 0 and i < len(ST.names) {
+            wear(ctx, ST.names[i], "wearing")
+            gallery(ctx, params)
+        }
+    } else if block == "actions" and kind == "press" {
+        let i = int_param(params, "value", 0 - 1)
+        if i == 0 {
+            surprise(ctx, params)
+        } else if i == 1 {
+            chaos(ctx, params)
+        } else {
+            ctx.close("gallery")
+            return
+        }
+        gallery(ctx, params)
+    } else if block == "mood" and kind == "submit" {
+        let name = theme_for_mood(param(params, "value"))
+        if name == "" {
+            ctx.message("no theme for that mood yet; try happy, sleepy, hacking, or cold")
+        } else {
+            wear(ctx, name, "for that mood")
+            gallery(ctx, params)
+        }
+    }
+}
+
+fun main() {
+    plugin("theme").command("theme.gallery", "Browse the themes in a panel", gallery).command(
+        "theme.surprise",
+        "Wear a random theme",
+        surprise,
+    ).command("theme.chaos", "Invent a brand new random theme", chaos).command(
+        "theme.mood",
+        "Pick a theme for your mood",
+        mood,
+    ).command("theme.clock", "Change theme with the time of day", clock).on("ui/event", on_event).on(
+        "cursor/moved",
+        moved,
+    ).bind("normal", "space T", "theme.gallery").bind("normal", "space S", "theme.surprise").serve()
+}
