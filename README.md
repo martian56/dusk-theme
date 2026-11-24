@@ -16,7 +16,8 @@ Needs dusk 0.5.0 or newer.
 ```
 
 dusk clones the repository, builds the plugin with `rvpm`, and loads the
-themes. Then `:theme` lists them and `:theme synthwave-84` switches.
+themes. Then `:theme` lists them (dusk 0.7.1 and newer preview each one as you
+move through the list) and `:theme synthwave-84` switches.
 
 ## The themes
 
